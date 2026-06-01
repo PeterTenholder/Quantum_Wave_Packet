@@ -1,50 +1,88 @@
 import numpy as np
 from config import *
 from calculations import *
+import matplotlib.pyplot as plt
 
-num_points = 64  # Number of grid points along each side
-box_size = 10.0  # Size of the physical box
+num_points = 4096  # Number of grid points along each side
+box_size = 40e-9  # Size of the physical box
 
 x_axis = np.linspace(-box_size / 2, box_size / 2, num_points, endpoint=False)
-y_axis = x_axis
-z_axis = x_axis
-X, Y, Z = np.meshgrid(x_axis, y_axis, z_axis, indexing='ij')
+#y_axis = x_axis
+#z_axis = x_axis
 
 dx = x_axis[1] - x_axis[0]
+#dy = y_axis[1] - y_axis[0]
+#dz = z_axis[1] - z_axis[0]
 
 px = np.fft.fftfreq(num_points, d=dx) * 2 *np.pi # 1d array
 py = px
 pz = px
-PX, PY, PZ = np.meshgrid(px, py, pz, indexing='ij') #shapes to 3d
+#PX, PY, PZ = np.meshgrid(px, py, pz, indexing='ij') #shapes to 3d
 
 dpx = px[1] - px[0]
 
 
 
-print("Spatial Grid Shape: ", X.shape)
-print("Momentumn Grid Shape: ", PX.shape)
+print("Spatial Grid Shape: ", x_axis.shape)
+print("Momentumn Grid Shape: ", px.shape)
 
-inital_packet = create_wave_packet(X) # maybe just X
-normalized_packet = nomrmalize_wave_packet(inital_packet, x_axis)
-for i in range(10):
-    # first half kick 
-    # mulitpoly position wave funciton by first half of potential energy operator V(x) 
-    psi_new = normalized_packet * np.exp(-1 *1j * V * dt / (2 * HBAR))
-
-    # transform wave function from position space into momentum space with fft
-    phi_new = np.fft.fftn(psi_new)
+inital_packet = create_wave_packet(x_axis) # maybe just x_axis
+current_packet = normalize_wave_packet(inital_packet, dx)
 
 
-    # kinetic drift
-    # multiply kinetic energy operator in momentum space 
-    phi_new_drifted = phi_new * np.exp(-1 *1j * HBAR * (PX**2 + PY**2 + PZ**2) * dt / (2 * MASS)) # k^2 = px^2 + py^2 + pz^2
+B = np.zeros(num_points)
+B[(x_axis >= V_START) & (x_axis <= V_END)] = V0
+# Set the potential barrier height for the masked region
+# The barrier is defined as a rectangular region in the x-axis between V_START and V_END, and it extends infinitely in the y and z directions.
 
-    # reutn to position space with inverse fft
+kick  = np.exp(-1j * B * dt / (2*HBAR))
+drift = np.exp(-1j * px**2 * dt / (2*MASS*HBAR))
 
-    psi_new_drifted = np.fft.ifftn(phi_new_drifted)
+for step in range(int(2.5e4)):
 
-    # second half kick 
-    # multoply by second half of potential energy operator V(x) to get final wave function at time t+dt
-    psi_final = psi_new_drifted * np.exp(-1 *1j * V * dt / (2 * HBAR))
+    # Should be ~1 
+    if step % 1000 == 0:
+        norm = np.sum(np.abs(current_packet)**2) * dx
+        print(f"step {step:>6}   norm = {norm:.6f}")
 
-    print(np.trapezoid(np.abs(psi_final)**2, x_axis)) # should be 1, check normalization
+    # First half kick: apply half the potential operator in position space
+    psi = current_packet * kick
+
+    # Kinetic drift in momentum space:
+    #   FFT to momentum space -> apply kinetic operator -> inverse FFT back
+    psi_momentum = np.fft.fft(psi)
+    psi_drifted = np.fft.ifft(psi_momentum * drift)
+
+    # Second half kick: apply the remaining half of the potential operator
+    current_packet = psi_drifted * kick
+
+
+
+#make potential barrier
+
+past = x_axis > V_END
+T = np.sum(np.abs(current_packet[past])**2) * dx 
+print(f"Transmission: {T}")
+
+E0 = calculate_most_probable_energy()
+
+print(f"Theoretical Transmission: {calculate_theoretical_transmission(V0, E0)}")
+
+print(f"Percent Error: {abs(T - calculate_theoretical_transmission(V0, E0)) / calculate_theoretical_transmission(V0, E0) * 100:.2f}%")
+
+print(f"Most Probable Energy: {E0:.2e} J")
+print(f"Barrier Height: {V0:.2e} J")
+print(f"Barrier Width: {V_WIDTH:.2e} m")
+print(f"kappa: {np.sqrt(2 * MASS * (V0 - E0)) / HBAR:.2e} 1/m")
+print(f"kappa * L: {np.sqrt(2 * MASS * (V0 - E0)) / HBAR * V_WIDTH:.2f}")
+
+
+
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(x_axis, np.abs(current_packet)**2, label='|ψ|²')
+ax.axvspan(V_START, V_END, alpha=0.2, color='red', label='barrier')
+ax.set_xlabel("x position")
+ax.set_ylabel("probability density")
+ax.legend()
+plt.show()

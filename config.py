@@ -7,6 +7,11 @@ H= 6.62607015e-34
 HBAR = 1.0545718e-34
 K_O = 1e10
 MASS = 9.10938356e-31 #electron mass
-INITIAL_POSITION = 0
+INITIAL_POSITION = -20e-9 # initial position of the wave packet, should be negative to start on the left side of the box
 
-V = 0.5 * MASS * (K_O * HBAR / MASS)**2 # potential energy at the center of the wave packet, unsure 
+potent = 0.5 * MASS * (K_O * HBAR / MASS)**2 # potential energy at the center of the wave packet, unsure 
+
+V0 = 1e-18 # height of the potential barrier
+V_WIDTH = 9e-9 # width of the potential barrier
+V_START = 2e-9 # start position of the potential barrier
+V_END = V_START + V_WIDTH # end position of the potential barrier

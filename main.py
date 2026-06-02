@@ -3,8 +3,8 @@ from config import *
 from calculations import *
 import matplotlib.pyplot as plt
 
-num_points = 4096  # Number of grid points along each side
-box_size = 40e-9  # Size of the physical box
+num_points = NUM_POINTS
+box_size = BOX_SIZE
 
 x_axis = np.linspace(-box_size / 2, box_size / 2, num_points, endpoint=False)
 #y_axis = x_axis
@@ -35,10 +35,21 @@ B[(x_axis >= V_START) & (x_axis <= V_END)] = V0
 # Set the potential barrier height for the masked region
 # The barrier is defined as a rectangular region in the x-axis between V_START and V_END, and it extends infinitely in the y and z directions.
 
-kick  = np.exp(-1j * B * dt / (2*HBAR))
+# Absorbing boundary conditions: add an imaginary potential that increases towards the edges of the box to prevent reflections
+#does not affect the results since the wave packet should not reach the edges of the box, but just in case it does, we want to prevent reflections from the boundaries that would interfere with our results.
+absorb = np.zeros(num_points)
+m = num_points // 8
+ramp = np.linspace(0, 1, m)**2
+strength = 3e-22
+absorb[:m]  = strength * ramp[::-1]
+absorb[-m:] = strength * ramp
+
+kick = np.exp(-1j * (B - 1j*absorb) * dt / (2*HBAR))   # imaginary part causes decay
 drift = np.exp(-1j * px**2 * dt / (2*MASS*HBAR))
 
-for step in range(int(2.5e4)):
+
+
+for step in range(int(1.4e4)):
 
     # Should be ~1 
     if step % 1000 == 0:
@@ -61,7 +72,10 @@ for step in range(int(2.5e4)):
 #make potential barrier
 
 past = x_axis > V_END
-T = np.sum(np.abs(current_packet[past])**2) * dx 
+# clean region: past barrier but before the right absorber
+right_absorber_start = x_axis[-m]
+window = (x_axis > V_END) & (x_axis < right_absorber_start)
+T = np.sum(np.abs(current_packet[window])**2) * dx
 print(f"Transmission: {T}")
 
 E0 = calculate_most_probable_energy()
@@ -70,8 +84,8 @@ print(f"Theoretical Transmission: {calculate_theoretical_transmission(V0, E0)}")
 
 print(f"Percent Error: {abs(T - calculate_theoretical_transmission(V0, E0)) / calculate_theoretical_transmission(V0, E0) * 100:.2f}%")
 
-print(f"Most Probable Energy: {E0:.2e} J")
-print(f"Barrier Height: {V0:.2e} J")
+print(f"Most Probable Energy E0: {E0:.2e} J")
+print(f"Barrier Height V0: {V0:.2e} J")
 print(f"Barrier Width: {V_WIDTH:.2e} m")
 print(f"kappa: {np.sqrt(2 * MASS * (V0 - E0)) / HBAR:.2e} 1/m")
 print(f"kappa * L: {np.sqrt(2 * MASS * (V0 - E0)) / HBAR * V_WIDTH:.2f}")

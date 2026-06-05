@@ -23,3 +23,9 @@ def calculate_most_probable_energy():
     # The most probable energy of the initial wave packet 
     # no one single energy, but can find mean energy from the momentum distribution of the initial wave packet
     return (HBAR * K_O)**2 / (2 * MASS)
+
+def calculate_percent_error(simulated, theoretical):
+    return abs(simulated - theoretical) / theoretical * 100
+
+def logspace(lo_exp, hi_exp, n):  # 10^lo to 10^hi, n points
+    return [10**(lo_exp + (hi_exp-lo_exp)*i/(n-1)) for i in range(n)]
